@@ -1,7 +1,8 @@
 import sys
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                              QPushButton, QLabel, QComboBox, QTextEdit, QSpinBox, 
-                             QTableWidget, QTableWidgetItem, QHeaderView, QMessageBox)
+                             QTableWidget, QTableWidgetItem, QHeaderView, QMessageBox, QDialog, QGridLayout,
+                             QDialogButtonBox)
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QFont, QColor
 from puzzle_solver import EightPuzzleGame, PuzzleState, FINAL_STATE_CONFIG
@@ -140,6 +141,10 @@ class EightPuzzleGUI(QMainWindow):
         self.random_button = QPushButton("Random Puzzle")
         self.random_button.clicked.connect(self.generate_random_puzzle)
         gen_layout.addWidget(self.random_button)
+
+        self.custom_button = QPushButton("Custom Puzzle")
+        self.custom_button.clicked.connect(self.input_custom_puzzle)
+        gen_layout.addWidget(self.custom_button)
         
         self.reset_button = QPushButton("Reset Puzzle")
         self.reset_button.clicked.connect(self.reset_puzzle)
@@ -183,6 +188,60 @@ class EightPuzzleGUI(QMainWindow):
         self.puzzle_game = EightPuzzleGame(PuzzleState([[5, 6, 4], [7, 8, 0], [2, 1, 3]]))
         self.update_display()
         self.clear_solution()
+
+    def input_custom_puzzle(self):
+        """Open a dialog to input a custom puzzle configuration."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Input Custom Puzzle")
+        dialog.setModal(True)
+        layout = QVBoxLayout(dialog)
+        
+        # Create a 3x3 grid of spin boxes for input
+        self.input_grid = []
+        grid_layout = QGridLayout()
+        for i in range(3):
+            row = []
+            for j in range(3):
+                spin = QSpinBox()
+                spin.setRange(0, 8)
+                spin.setValue(0 if i == 2 and j == 2 else i*3 + j + 1)  # Default to solved state
+                grid_layout.addWidget(spin, i, j)
+                row.append(spin)
+            self.input_grid.append(row)
+        
+        layout.addLayout(grid_layout)
+        
+        # Add OK/Cancel buttons
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+        layout.addWidget(button_box)
+        
+        if dialog.exec_() == QDialog.Accepted:
+            # Get the values from the spin boxes
+            board = []
+            try:
+                for i in range(3):
+                    row = []
+                    for j in range(3):
+                        row.append(self.input_grid[i][j].value())
+                    board.append(row)
+                
+                # Validate the puzzle (must contain all numbers 0-8 exactly once)
+                numbers = [num for row in board for num in row]
+                if sorted(numbers) != list(range(9)):
+                    QMessageBox.warning(self, "Invalid Puzzle", 
+                                      "Puzzle must contain each number from 0 to 8 exactly once.")
+                    return
+                
+                # Create the puzzle
+                self.puzzle_game = EightPuzzleGame(PuzzleState(board))
+                self.update_display()
+                self.clear_solution()
+                
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to create puzzle:\n{str(e)}")
+
         
     def generate_random_puzzle(self):
         """Generate a new random puzzle."""
