@@ -286,7 +286,7 @@ class GreedyBestFirstSearch(SearchMethod):
         Initialize Greedy Search with a specified heuristic.
         
         Args:
-            heuristic: Either 'manhattan' or 'misplaced' for the heuristic function.
+            heuristic: Either 'manhattan', linear_conflict or 'misplaced' for the heuristic function.
         """
         self.heuristic = heuristic
         
@@ -335,7 +335,7 @@ class AStarSearch(SearchMethod):
         Initialize A* search with a specified heuristic.
         
         Args:
-            heuristic: Either 'manhattan' or 'misplaced' for the heuristic function.
+            heuristic: Either 'manhattan', linear_conflict or 'misplaced' for the heuristic function.
         """
         self.heuristic = heuristic
         
