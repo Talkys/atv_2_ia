@@ -221,20 +221,25 @@ class DepthFirstSearch(SearchMethod):
     """Depth-first search implementation."""
     
     def solve(self, initial_state: PuzzleState, goal_state: PuzzleState) -> Optional[SearchNode]:
-        frontier = [SearchNode(initial_state)]
+        # Store both the node and its current depth in the frontier
+        frontier = [(SearchNode(initial_state), 0)]  # (node, depth)
         explored = set()
+        depth_limit = 100
         
         while frontier:
-            node = frontier.pop()
+            node, current_depth = frontier.pop()
             
             if node.state.is_goal(goal_state):
                 return node
                 
             explored.add(node.state)
             
-            for move in reversed(node.state.get_possible_moves()):
-                if move not in explored and not any(n.state == move for n in frontier):
-                    frontier.append(SearchNode(move, node, "move", node.cost + 1))
+            # Only expand if we haven't reached the depth limit
+            if current_depth < depth_limit:
+                for move in reversed(node.state.get_possible_moves()):
+                    if move not in explored and not any(n.state == move for n, _ in frontier):
+                        new_node = SearchNode(move, node, "move", node.cost + 1)
+                        frontier.append((new_node, current_depth + 1))
         
         return None
     
