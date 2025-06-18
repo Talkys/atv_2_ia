@@ -551,15 +551,23 @@ def solve_with_timeout(game, method, timeout):
     
 
 def solve_game(game, method, timeout):
-    timeout_seconds = 5
-    start_time = time.time()
+    # First check if the puzzle is solvable
+    if not game._is_solvable(game.initial_state):
+        return {
+            'method': method,
+            'solution': None,
+            'message': 'Puzzle is not solvable'
+        }
+    
+    # If solvable, proceed with solving
     solution_info = solve_with_timeout(game, method, timeout)
 
-    if solution_info is None: return None
-    
-    #game.print_solution(solution_info)
-    #elapsed = time.time() - start_time
-    #print(f"Method {method} completed in {elapsed:.2f} seconds")
+    if solution_info is None: 
+        return {
+            'method': method,
+            'solution': None,
+            'message': f'Timeout after {timeout} seconds'
+        }
 
     return solution_info
 
