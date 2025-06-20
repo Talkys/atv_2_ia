@@ -288,12 +288,14 @@ class EightPuzzleGUI(QMainWindow):
             solution_info = puzzle_solver.solve_game(self.puzzle_game, method_key, 5)
 
             if solution_info is None:
+                QMessageBox.information(self, "No Solution", "No solution was found for this puzzle.")
+                return
+
+            if solution_info['solution'] is None:
                 QMessageBox.information(self, "No Solution", "This method timed out before finding a solution")
                 return
             
-            if solution_info['solution'] is None:
-                QMessageBox.information(self, "No Solution", "No solution was found for this puzzle.")
-                return
+            
                 
             self.current_solution = solution_info
             self.current_step = 0

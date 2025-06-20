@@ -3,6 +3,8 @@ from typing import List, Tuple, Optional, Dict, Any
 from abc import ABC, abstractmethod
 import time
 import multiprocessing
+import os
+from collections import deque
 
 FINAL_STATE_CONFIG = [[1, 2, 3], [4, 5, 6], [7, 8, 0]]
 INITIAL_STATE_CONFIG = [[5, 6, 4], [7, 8, 0], [2, 1, 3]]
@@ -196,25 +198,38 @@ class SearchMethod(ABC):
 
 
 class BreadthFirstSearch(SearchMethod):
-    """Breadth-first search implementation."""
+    """BFS with depth limit and timeout, without modifying external classes."""
     
-    def solve(self, initial_state: PuzzleState, goal_state: PuzzleState) -> Optional[SearchNode]:
-        frontier = [SearchNode(initial_state)]
+    def solve(self, initial_state: PuzzleState, goal_state: PuzzleState, max_depth: int = 32, timeout_seconds: float = 10) -> Optional[SearchNode]:
+        # Queue stores tuples of (node, current_depth)
+        frontier = deque([ (SearchNode(initial_state), 0) ])  # (node, depth=0)
         explored = set()
         
+        start_time = time.time()
+        
         while frontier:
-            node = frontier.pop(0)
-            
+            # Check for timeout if timeout_seconds is specified
+            if timeout_seconds is not None and (time.time() - start_time) > timeout_seconds:
+                return None  # Timeout reached
+                
+            node, depth = frontier.popleft()  # Unpack node and depth
+            print(depth, (time.time() - start_time))
             if node.state.is_goal(goal_state):
-                return node
+                return node  # Solution found
                 
             explored.add(node.state)
             
+            # Skip expansion if max_depth reached
+            if depth >= max_depth:
+                continue
+                
+            # Generate child nodes (depth + 1)
             for move in node.state.get_possible_moves():
-                if move not in explored and not any(n.state == move for n in frontier):
-                    frontier.append(SearchNode(move, node, "move", node.cost + 1))
+                if move not in explored and not any(n.state == move for n, _ in frontier):
+                    child_node = SearchNode(move, node, "move", node.cost + 1)
+                    frontier.append((child_node, depth + 1))
         
-        return None
+        return None  # No solution within depth limit
 
 
 class DepthFirstSearch(SearchMethod):
@@ -224,7 +239,7 @@ class DepthFirstSearch(SearchMethod):
         # Store both the node and its current depth in the frontier
         frontier = [(SearchNode(initial_state), 0)]  # (node, depth)
         explored = set()
-        depth_limit = 100
+        depth_limit = 40
         
         while frontier:
             node, current_depth = frontier.pop()
@@ -246,15 +261,19 @@ class DepthFirstSearch(SearchMethod):
 class UniformCostSearch(SearchMethod):
     """Uniform Cost Search implementation (Dijkstra's algorithm)."""
     
-    def solve(self, initial_state: PuzzleState, goal_state: PuzzleState) -> Optional[SearchNode]:
+    def solve(self, initial_state: PuzzleState, goal_state: PuzzleState, timeout_seconds: float = 10) -> Optional[SearchNode]:
         # Priority queue where nodes are sorted by path cost
         frontier = [SearchNode(initial_state, cost=0)]
         explored = set()
         
         # To keep track of the best cost to reach each state
         cost_so_far = {initial_state: 0}
+        start_time = time.time()
         
         while frontier:
+            if timeout_seconds is not None and (time.time() - start_time) > timeout_seconds:
+                return None  # Timeout reached
+            
             # Get node with lowest cost
             frontier.sort(key=lambda n: n.cost)
             node = frontier.pop(0)
@@ -295,12 +314,17 @@ class GreedyBestFirstSearch(SearchMethod):
         """
         self.heuristic = heuristic
         
-    def solve(self, initial_state: PuzzleState, goal_state: PuzzleState) -> Optional[SearchNode]:
+    def solve(self, initial_state: PuzzleState, goal_state: PuzzleState, timeout_seconds: float = 10) -> Optional[SearchNode]:
         # Priority queue where nodes are sorted by heuristic value only
         frontier = [SearchNode(initial_state)]
         explored = set()
         
+        start_time = time.time()
+
         while frontier:
+            if timeout_seconds is not None and (time.time() - start_time) > timeout_seconds:
+                return None  # Timeout reached
+            
             # Sort frontier by heuristic value (greedy choice)
             frontier.sort(key=lambda n: self._heuristic(n.state, goal_state))
             node = frontier.pop(0)
@@ -344,7 +368,7 @@ class AStarSearch(SearchMethod):
         """
         self.heuristic = heuristic
         
-    def solve(self, initial_state: PuzzleState, goal_state: PuzzleState) -> Optional[SearchNode]:
+    def solve(self, initial_state: PuzzleState, goal_state: PuzzleState, timeout_seconds: float = 10) -> Optional[SearchNode]:
         open_set = [SearchNode(initial_state)]
         explored = set()
         
@@ -352,7 +376,12 @@ class AStarSearch(SearchMethod):
         g_score = {initial_state: 0}
         f_score = {initial_state: self._heuristic(initial_state, goal_state)}
         
+        start_time = time.time()
+
         while open_set:
+            # Check for timeout if timeout_seconds is specified
+            if timeout_seconds is not None and (time.time() - start_time) > timeout_seconds:
+                return None  # Timeout reached
             # Get node with lowest f_score
             open_set.sort(key=lambda n: f_score[n.state])
             node = open_set.pop(0)
@@ -524,7 +553,7 @@ class EightPuzzleGame:
                 print(state)
                 if i < len(solution_info['actions']):
                     print(f"Action: {solution_info['actions'][i]}")
-
+"""
 def solve_with_timeout(game, method, timeout):
     # Create a queue to communicate the result
     result_queue = multiprocessing.Queue()
@@ -548,19 +577,23 @@ def solve_with_timeout(game, method, timeout):
         return None  # or some timeout indicator
     else:
         return result_queue.get()
-    
+"""
+def solve_with_timeout(game, method, timeout):
+    with multiprocessing.Pool(1) as pool:
+        try:
+            result = pool.apply_async(game.solve_with_method, (method,))
+            return result.get(timeout=timeout)
+        except multiprocessing.TimeoutError:
+            pool.terminate()
+            return None    
 
 def solve_game(game, method, timeout):
     # First check if the puzzle is solvable
     if not game._is_solvable(game.initial_state):
-        return {
-            'method': method,
-            'solution': None,
-            'message': 'Puzzle is not solvable'
-        }
+        return None
     
-    # If solvable, proceed with solving
-    solution_info = solve_with_timeout(game, method, timeout)
+
+    solution_info = game.solve_with_method(method)
 
     if solution_info is None: 
         return {
